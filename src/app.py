@@ -10,6 +10,8 @@ data: 30/01/2018
 from flask import Flask, jsonify, abort, request, url_for,  make_response
 from flask_httpauth import HTTPBasicAuth
 
+import dao
+
 auth = HTTPBasicAuth()
 app = Flask(__name__)
 
@@ -17,20 +19,14 @@ path_default = "/ford/api/v1.0/documents/"
 
 documents = [
     {
-        'id': 1,
+        'id_document': 1,
+        'id_user':0,
+        'type':'directory',
         'title': u'Buy groceries',
         'description': u'Milk, Cheese, Pizza, Fruit, Tylenol', 
         'done': False
-    },
-    {
-        'id': 2,
-        'title': u'Learn Python',
-        'description': u'Need to find a good Python tutorial on the web', 
-        'done': False
-    }
+    }    
 ]
-
-
 
 @app.errorhandler(404)
 def not_found(error):
@@ -39,12 +35,23 @@ def not_found(error):
 @app.route(path_default, methods=['GET'])
 @auth.login_required
 def get_documents():
-    return jsonify({'documents': [make_public_document(document) for document in documents]})
+    if not request.json or not 'id_user' in request.json:
+        abort(400)
+    id_user = request.json['id_user']
+    source_document_id = request.json.get('source_document_id') or 0
+    documents = []
+    try:
+        documents = dao.document.get_documents(id_user=id_user,source_document_id=source_document_id)
+        return jsonify({'documents': documents})
+        
+    except Exception as identifier:
+        return jsonify({'error': identifier })
+    
 
-@app.route(path_default+'<int:document_id>', methods=['GET'])
+@app.route(path_default+'<int:id_document>', methods=['GET'])
 @auth.login_required
-def get_document(document_id):
-    document = [document for document in documents if document['id'] == document_id]
+def get_document(id_document):
+    document = [document for document in documents if document['id'] == id_document]
     if len(document) == 0:
         abort(404)
     return jsonify({'document': document[0]})
@@ -63,10 +70,10 @@ def create_document():
     documents.append(document)
     return jsonify({'document': document}), 201
 
-@app.route(path_default+'<int:document_id>', methods=['PUT'])
+@app.route(path_default+'<int:id_document>', methods=['PUT'])
 @auth.login_required
-def update_document(document_id):
-    document = [document for document in documents if document['id'] == document_id]
+def update_document(id_document):
+    document = [document for document in documents if document['id'] == id_document]
     if len(document) == 0:
         abort(404)
     if not request.json:
@@ -82,10 +89,10 @@ def update_document(document_id):
     document[0]['done'] = request.json.get('done', document[0]['done'])
     return jsonify({'document': document[0]})
 
-@app.route(path_default+'<int:document_id>', methods=['DELETE'])
+@app.route(path_default+'<int:id_document>', methods=['DELETE'])
 @auth.login_required
-def delete_document(document_id):
-    document = [document for document in documents if document['id'] == document_id]
+def delete_document(id_document):
+    document = [document for document in documents if document['id'] == id_document]
     if len(document) == 0:
         abort(404)
     documents.remove(document[0])
@@ -94,15 +101,15 @@ def make_public_document(document):
     new_document = {}
     for field in document:
         if field == 'id':
-            new_document['uri'] = url_for('get_document', document_id=document['id'], _external=True)
+            new_document['uri'] = url_for('get_document', id_document=document['id'], _external=True)
         else:
             new_document[field] = document[field]
     return new_document
 
 @auth.get_password
 def get_password(username):
-    if username == 'admin':
-        return 'admin'
+    if username == 'ford':
+        return 'ford'
     return None
 
 @auth.error_handler

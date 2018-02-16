@@ -60,7 +60,7 @@ class Twitter(threading.Thread):
         print(command)
         try:
             self.process = execute_command(command)
-        except expression as identifier:
+        except Exception as identifier:
             print(identifier)
 
     @classmethod
@@ -70,7 +70,7 @@ class Twitter(threading.Thread):
         print(command)
         try:
             self.process = execute_command(command)
-        except expression as identifier:
+        except Exception as identifier:
             print(identifier)
 
     @classmethod    
@@ -80,7 +80,7 @@ class Twitter(threading.Thread):
         print(command)
         try:
             self.process = execute_command(command)
-        except expression as identifier:
+        except Exception as identifier:
             print(identifier)
         
     @classmethod
@@ -90,7 +90,7 @@ class Twitter(threading.Thread):
         print(command)
         try:
             self.process = execute_command(command)
-        except expression as identifier:
+        except Exception as identifier:
             print(identifier)
     
     @classmethod
@@ -100,7 +100,7 @@ class Twitter(threading.Thread):
         print(command)
         try:
             self.process = execute_command(command)
-        except expression as identifier:
+        except Exception as identifier:
             print(identifier)
 
     @classmethod
@@ -110,7 +110,7 @@ class Twitter(threading.Thread):
         print(command)
         try:
             self.process = execute_command(command)
-        except expression as identifier:
+        except Exception as identifier:
             print(identifier)
 
     @classmethod        
@@ -120,7 +120,7 @@ class Twitter(threading.Thread):
         print(command)
         try:
             self.process = execute_command(command)
-        except expression as identifier:
+        except Exception as identifier:
             print(identifier)
 
     @classmethod
@@ -129,7 +129,7 @@ class Twitter(threading.Thread):
         command = "ford -t --twitter-data retweets -o {0} {1} -n 100 -q".format(arguments.get("output"),arguments_str )
         try:
             self.process = execute_command(command)
-        except expression as identifier:
+        except Exception as identifier:
             print(identifier)
         
     def stop():
