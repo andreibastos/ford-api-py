@@ -10,12 +10,48 @@ data: 30/01/2018
 from flask import Flask, jsonify, abort, request, url_for,  make_response
 from flask_httpauth import HTTPBasicAuth
 
-import dao
+from dao import DAODocument
 
 auth = HTTPBasicAuth()
 app = Flask(__name__)
+app.debug = True
+app.threaded=True
+app.config['SECRET_KEY'] = 'super-secret'
 
-path_default = "/ford/api/v1.0/documents/"
+path_default = "/ford/api/v1.0/"
+path_default_documents = path_default+"documents/"
+path_default_user = path_default+"user/"
+
+class User(object):
+    def __init__(self, id, username, password):
+        self.id = id
+        self.username = username
+        self.password = password
+
+    def __str__(self):
+        return "User(id='%s')" % self.id
+
+users = [
+    User(1, 'user1', 'abcxyz'),
+    User(2, 'user2', 'abcxyz'),
+]
+
+users = [
+    {'id_user':0, 'username':'andrei', 'password':'123'},
+    {'id_user':1, 'username':'bianca', 'password':'123'},
+    {'id_user':2, 'username':'roberto', 'password':'123'}   
+]
+
+def verify_user(username):    
+    for user in users:
+        if user.get('username') == username:
+            return user['password']
+    return None
+
+def get_id_user(username):
+    for user in users:
+        if user.get('username') == username:
+            return user['id_user']
 
 documents = [
     {
@@ -32,20 +68,18 @@ documents = [
 def not_found(error):
     return make_response(jsonify({'error': 'Not found'}), 404)
 
-@app.route(path_default, methods=['GET'])
+@app.route(path_default_documents, methods=['GET','POST'])
 @auth.login_required
-def get_documents():
-    if not request.json or not 'id_user' in request.json:
-        abort(400)
-    id_user = request.json['id_user']
-    source_document_id = request.json.get('source_document_id') or 0
+def get_documents():        
+    id_user = get_id_user(auth.username())    
+    source_document_id = request.args.get('source_document_id', default = 0, type = int)
     documents = []
-    try:
-        documents = dao.document.get_documents(id_user=id_user,source_document_id=source_document_id)
+    try:        
+        documents = DAODocument.get_documents(id_user=id_user,source_document_id=source_document_id)                        
         return jsonify({'documents': documents})
         
-    except Exception as identifier:
-        return jsonify({'error': identifier })
+    except Exception as identifier:        
+        return jsonify({'error': 1, 'msg':identifier.message})
     
 
 @app.route(path_default+'<int:id_document>', methods=['GET'])
@@ -107,16 +141,13 @@ def make_public_document(document):
     return new_document
 
 @auth.get_password
-def get_password(username):
-    if username == 'ford':
-        return 'ford'
-    return None
+def get_password(username):    
+    password = verify_user(username)        
+    return password
 
 @auth.error_handler
 def unauthorized():
     return make_response(jsonify({'error': 'Unauthorized access'}), 401)
 
-
-
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == '__main__':    
+    app.run()
