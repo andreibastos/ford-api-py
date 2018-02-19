@@ -10,10 +10,12 @@ data: 30/01/2018
 from flask import Flask, jsonify, abort, request, url_for,  make_response
 from flask_httpauth import HTTPBasicAuth
 
+import bson
 from dao import DAODocument
 
 auth = HTTPBasicAuth()
 app = Flask(__name__)
+
 app.debug = True
 app.threaded=True
 app.config['SECRET_KEY'] = 'super-secret'
@@ -64,25 +66,46 @@ documents = [
     }    
 ]
 
-@app.errorhandler(404)
-def not_found(error):
-    return make_response(jsonify({'error': 'Not found'}), 404)
+class InvalidUsage(Exception):
+    status_code = 400
 
-@app.route(path_default_documents, methods=['GET','POST'])
+    def __init__(self, message, status_code=None, payload=None):
+        Exception.__init__(self)
+        self.message = message
+        if status_code is not None:
+            self.status_code = status_code
+        self.payload = payload
+
+    def to_dict(self):
+        rv = dict(self.payload or ())
+        rv['error'] = True
+        rv['code'] = self.status_code
+        rv['message'] = self.message
+        return rv
+
+
+@app.errorhandler(InvalidUsage)
+def handle_invalid_usage(error):
+    response = jsonify(error.to_dict())
+    response.status_code = error.status_code
+    return response
+
+@app.route(path_default_documents, methods=['GET'])
 @auth.login_required
 def get_documents():        
-    id_user = get_id_user(auth.username())    
-    source_document_id = request.args.get('source_document_id', default = 0, type = int)
+    id_user = get_id_user(auth.username())        
+    source_id = request.args.get('source_id', default = 0, type = int)
     documents = []
     try:        
-        documents = DAODocument.get_documents(id_user=id_user,source_document_id=source_document_id)                        
+        documents = DAODocument.get_documents(id_user=id_user,source_id=source_id)                        
         return jsonify({'documents': documents})
         
-    except Exception as identifier:        
-        return jsonify({'error': 1, 'msg':identifier.message})
+    except Exception as identifier: 
+        raise InvalidUsage(identifier.message, status_code=410)       
+        
     
 
-@app.route(path_default+'<int:id_document>', methods=['GET'])
+@app.route(path_default_documents+'<int:id_document>', methods=['GET'])
 @auth.login_required
 def get_document(id_document):
     document = [document for document in documents if document['id'] == id_document]
@@ -90,21 +113,36 @@ def get_document(id_document):
         abort(404)
     return jsonify({'document': document[0]})
 
-@app.route(path_default, methods=['POST'])
+@app.route(path_default_documents, methods=['POST'])
 @auth.login_required
 def create_document():
-    if not request.json or not 'title' in request.json:
-        abort(400)
-    document = {
-        'id': documents[-1]['id'] + 1,
-        'title': request.json['title'],
-        'description': request.json.get('description', ""),
-        'done': False
-    }
-    documents.append(document)
-    return jsonify({'document': document}), 201
+    id_user = get_id_user(auth.username())     
+    
+    def create_directory(request):        
+        directory = { 
+        'id_user':id_user,       
+        'type':'directory', 
+        'name': request['name'],
+        'source_id': request.get('source_id') or  0,
+        'description': request.get('description'),
+        'is_favorited':request.get('is_favorited') or  False
+        }
+        return directory
 
-@app.route(path_default+'<int:id_document>', methods=['PUT'])
+    if not request.json or not 'type' in request.json:
+        abort(400)       
+
+    if request.json['type'] == 'directory':
+        try:            
+            directory = create_directory(request.json)            
+            result = DAODocument.insert(directory)
+        except Exception as identifier:
+            raise InvalidUsage(identifier.message, status_code=410)       
+        
+    
+    return jsonify({'result': result}), 201
+
+@app.route(path_default_documents+'<int:id_document>', methods=['PUT'])
 @auth.login_required
 def update_document(id_document):
     document = [document for document in documents if document['id'] == id_document]
@@ -123,7 +161,7 @@ def update_document(id_document):
     document[0]['done'] = request.json.get('done', document[0]['done'])
     return jsonify({'document': document[0]})
 
-@app.route(path_default+'<int:id_document>', methods=['DELETE'])
+@app.route(path_default_documents+'<int:id_document>', methods=['DELETE'])
 @auth.login_required
 def delete_document(id_document):
     document = [document for document in documents if document['id'] == id_document]
@@ -150,4 +188,4 @@ def unauthorized():
     return make_response(jsonify({'error': 'Unauthorized access'}), 401)
 
 if __name__ == '__main__':    
-    app.run()
+    app.run(host="0.0.0.0")

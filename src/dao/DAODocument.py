@@ -5,8 +5,9 @@ author: Andrei Bastos
 organization: Labic/Ufes
 data: 30/01/2018
 """
-import pymongo
-import datetime
+import pymongo,json
+from bson.json_util import dumps
+import time
 
 client = pymongo.MongoClient()
 
@@ -15,9 +16,11 @@ collection_document = db['document']
 
 def insert(document):
     try:
-        document["date_created"] = datetime.datetime.utcnow()
-        document["date_modified"] = document["date_created"] 
+        document["date_created"] = round(time.time(),0)
+        document["date_modified"] = document["date_created"]        
         collection_document.insert_one(document)
+        document['_id'] = str(document['_id'])
+        return document
     except Exception as identifier:
         raise identifier    
 
@@ -27,11 +30,12 @@ def update(document):
     except Exception as identifier:
         raise identifier
 
-def get_documents(id_user,source_document_id=0):
+def get_documents(id_user,source_id=0):
     try:
-        query = {'id_user':id_user, 'source_document_id':source_document_id}                
+        query = {'id_user':id_user, 'source_id':source_id}                        
         result = [x for x in collection_document.find(query)]
-        
+        result = json.loads(dumps(result))
+        print query,result
         return result
     except Exception as identifier:
         raise identifier
