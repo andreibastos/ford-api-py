@@ -2,3 +2,5 @@ pymongo==3.6.0
 Flask==0.12.2
 flask-httpauth==3.2.3
 Flask-JWT==0.3.2
+PyJWT==0.2.1
+mongoengine==0.15.0

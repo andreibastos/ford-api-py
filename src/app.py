@@ -6,65 +6,58 @@ organization: Labic/Ufes
 data: 30/01/2018
 """
 
+import bson
 
+##requeriments
 from flask import Flask, jsonify, abort, request, url_for,  make_response
 from flask_httpauth import HTTPBasicAuth
+import mongoengine
 
-import bson
+# my modules
 from dao import DAODocument
 
 auth = HTTPBasicAuth()
 app = Flask(__name__)
-
 app.debug = True
 app.threaded=True
 app.config['SECRET_KEY'] = 'super-secret'
 
-path_default = "/ford/api/v1.0/"
+path_default = "/api/"
 path_default_documents = path_default+"documents/"
 path_default_user = path_default+"user/"
 
-class User(object):
-    def __init__(self, id, username, password):
-        self.id = id
-        self.username = username
-        self.password = password
+mongoengine.connect('ford')
 
-    def __str__(self):
-        return "User(id='%s')" % self.id
+class User(mongoengine.Document):
+    email = mongoengine.StringField(required=True)
+    password = mongoengine.StringField(required=True)
+    first_name = mongoengine.StringField(required=True, max_length=50)
+    last_name = mongoengine.StringField(max_length=50)
 
-users = [
-    User(1, 'user1', 'abcxyz'),
-    User(2, 'user2', 'abcxyz'),
-]
+class Document(mongoengine.Document):
+    name = mongoengine.StringField(required=True)    
+    is_favorited = mongoengine.BooleanField()
+    author = mongoengine.ReferenceField(User, required=True, reverse_delete_rule=mongoengine.CASCADE)
+    date_created = mongoengine.DateTimeField()
+    date_modified = mongoengine.DateTimeField()
+    space_disk =  mongoengine.IntField()
+    described = mongoengine.StringField()
+    tags = mongoengine.ListField(mongoengine.StringField(max_length=30))
 
-users = [
-    {'id_user':0, 'username':'andrei', 'password':'123'},
-    {'id_user':1, 'username':'bianca', 'password':'123'},
-    {'id_user':2, 'username':'roberto', 'password':'123'}   
-]
+    meta = {'allow_inheritance': True}
 
-def verify_user(username):    
-    for user in users:
-        if user.get('username') == username:
-            return user['password']
-    return None
 
-def get_id_user(username):
-    for user in users:
-        if user.get('username') == username:
-            return user['id_user']
-
-documents = [
-    {
-        'id_document': 1,
-        'id_user':0,
-        'type':'directory',
-        'title': u'Buy groceries',
-        'description': u'Milk, Cheese, Pizza, Fruit, Tylenol', 
-        'done': False
-    }    
-]
+class Directory(Document):
+    source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE)    
+    
+    
+class File(Document):
+    source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE)
+    
+    
+class Process(Document):
+    source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE)
+    
 
 class InvalidUsage(Exception):
     status_code = 400
@@ -83,7 +76,6 @@ class InvalidUsage(Exception):
         rv['message'] = self.message
         return rv
 
-
 @app.errorhandler(InvalidUsage)
 def handle_invalid_usage(error):
     response = jsonify(error.to_dict())
@@ -92,96 +84,75 @@ def handle_invalid_usage(error):
 
 @app.route(path_default_documents, methods=['GET'])
 @auth.login_required
-def get_documents():        
-    id_user = get_id_user(auth.username())        
-    source_id = request.args.get('source_id', default = 0, type = int)
+def get_documents(): 
     documents = []
-    try:        
-        documents = DAODocument.get_documents(id_user=id_user,source_id=source_id)                        
-        return jsonify({'documents': documents})
-        
+    try:
+        return jsonify({'documents': documents})        
     except Exception as identifier: 
         raise InvalidUsage(identifier.message, status_code=410)       
-        
-    
 
 @app.route(path_default_documents+'<int:id_document>', methods=['GET'])
 @auth.login_required
 def get_document(id_document):
-    document = [document for document in documents if document['id'] == id_document]
+    document = ['andrei']
     if len(document) == 0:
         abort(404)
     return jsonify({'document': document[0]})
 
 @app.route(path_default_documents, methods=['POST'])
 @auth.login_required
-def create_document():
-    id_user = get_id_user(auth.username())     
-    
-    def create_directory(request):        
-        directory = { 
-        'id_user':id_user,       
-        'type':'directory', 
-        'name': request['name'],
-        'source_id': request.get('source_id') or  0,
-        'description': request.get('description'),
-        'is_favorited':request.get('is_favorited') or  False
-        }
-        return directory
+def create_document():    
+    def create_directory(request):    
+        source_id = request.get('source_id')
+        if source_id :            
+            source_document = Directory.objects.get(id=source_id)
+            if not source_document:
+                raise InvalidUsage('not exist id={0}'.format(source_id))
+        else:
+            source_document = Directory(name='root', author = auth.user, source_document=None)
+
+        print source_document.to_json()    
+        source_document.save()
+        
+        
+        return Directory( name= request['name'],            
+            source_document = source_document,
+            described= request.get('description'),
+            is_favorited=request.get('is_favorited') or  False,
+            author = auth.user
+        )
 
     if not request.json or not 'type' in request.json:
         abort(400)       
 
     if request.json['type'] == 'directory':
         try:            
-            directory = create_directory(request.json)            
-            result = DAODocument.insert(directory)
+            directory = create_directory(request.json)                        
+            directory.save()            
         except Exception as identifier:
             raise InvalidUsage(identifier.message, status_code=410)       
-        
     
-    return jsonify({'result': result}), 201
+    
+    return jsonify({'result': directory.to_json() }), 201
 
 @app.route(path_default_documents+'<int:id_document>', methods=['PUT'])
 @auth.login_required
-def update_document(id_document):
-    document = [document for document in documents if document['id'] == id_document]
-    if len(document) == 0:
-        abort(404)
-    if not request.json:
-        abort(400)
-    if 'title' in request.json and type(request.json['title']) != unicode:
-        abort(400)
-    if 'description' in request.json and type(request.json['description']) is not unicode:
-        abort(400)
-    if 'done' in request.json and type(request.json['done']) is not bool:
-        abort(400)
-    document[0]['title'] = request.json.get('title', document[0]['title'])
-    document[0]['description'] = request.json.get('description', document[0]['description'])
-    document[0]['done'] = request.json.get('done', document[0]['done'])
-    return jsonify({'document': document[0]})
+def update_document(id_document):    
+    pass
+    # return jsonify({'document': document[0]})
 
 @app.route(path_default_documents+'<int:id_document>', methods=['DELETE'])
 @auth.login_required
 def delete_document(id_document):
-    document = [document for document in documents if document['id'] == id_document]
-    if len(document) == 0:
-        abort(404)
-    documents.remove(document[0])
-
-def make_public_document(document):
-    new_document = {}
-    for field in document:
-        if field == 'id':
-            new_document['uri'] = url_for('get_document', id_document=document['id'], _external=True)
-        else:
-            new_document[field] = document[field]
-    return new_document
+    pass
 
 @auth.get_password
-def get_password(username):    
-    password = verify_user(username)        
-    return password
+def get_password(email):     
+    user = User.objects(email=email)
+    if user:
+        auth.user = user[0]        
+        return user[0].password
+    return None
 
 @auth.error_handler
 def unauthorized():
@@ -189,3 +160,4 @@ def unauthorized():
 
 if __name__ == '__main__':    
     app.run(host="0.0.0.0")
+    
