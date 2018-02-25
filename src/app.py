@@ -242,19 +242,19 @@ def add_user():
         # salva o usuáro
         new_user.save()  
         # criar o diretório root
-        root_directory = new_user.create_directory('root', None, False,'root directory') 
+        new_user.create_directory('root', None, False,'root directory') 
         
         return(jsonify({'user':new_user.to_dict()}))
 
     except Exception as identifier:
         raise InvalidUsage(identifier.message)
 
-
 # Pegar Usuário
 @app.route(path_default_user, methods=['GET'])
 @auth.login_required
 def get_user():
-    pass
+    return(jsonify({'user':auth.user.to_dict()}))
+
 
 # Atualizar Usuário
 @app.route(path_default_user+'<id>', methods=['PUT'])
