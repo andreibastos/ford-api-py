@@ -128,7 +128,8 @@ class Document(mongoengine.Document):
     system_path = mongoengine.StringField()
 
 class Directory(Document):
-    source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE)        
+    source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE )
+          
     meta = {'allow_inheritance': True}
 
     # Dicionário
@@ -145,14 +146,14 @@ class Directory(Document):
         directory['author'] = self.author.to_dict()
         directory['system_path'] = self.system_path  
         if self.source_document:
-            directory['source_id'] = self.source_document.to_dict()['id']
-            
-            
+            directory['source_id'] = self.source_document.to_dict()['id']         
         
         return directory
 
 class File(Document):
     source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE)
+    name = mongoengine.StringField(required=True, unique_with='source_document' )  
+
     meta = {'allow_inheritance': True}
     
     # Dicionário
@@ -234,15 +235,20 @@ def add_document():
             if source_document:
                 if file_upload and allowed_file(file_upload.filename):
                     filename = secure_filename(file_upload.filename)
-                    system_path = os.path.join(source_document.system_path, filename)
+                    space_disk = 0  
+                    system_path = os.path.join(source_document.system_path, filename)            
+                    file_uploaded = auth.user.upload_file(filename,source_document, is_favorited, description, system_path, space_disk)
+                    
                     file_upload.save(system_path)
-
-                    space_disk = os.stat(system_path).st_size
+                    file_uploaded.space_disk = os.stat(system_path).st_size 
+                    file_uploaded.save()
 
                     
-                    file_uploaded = auth.user.upload_file(filename,source_document, is_favorited, description, system_path, space_disk)
-                    file_uploaded.save()
+                    
+
                     source_document.space_disk += space_disk
+                    source_document.save()
+
                 else:
                     raise InvalidUsage('extension is not valid')  
                 return jsonify({'file_uploaded':file_uploaded.to_dict()})
@@ -250,7 +256,6 @@ def add_document():
                 raise InvalidUsage("not exist document with id={0}".format(source_id))
 
         except Exception as identifier:
-            print identifier
             raise InvalidUsage(identifier.message)  
 
     if  request.json:
