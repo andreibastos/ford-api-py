@@ -48,16 +48,28 @@ class User(mongoengine.Document):
     def get_documents(self, id):
         source_document = None
         try:
-            source_document = Document.objects.get(id=id, author = self)                                    
+            source_document = Document.objects.get(id=id, author = self)                                  
+
         except Document.DoesNotExist:                        
             raise InvalidUsage('directory not exist')
-
-        if source_document:
-            try:
-                documents = Document.objects.get(source_document=source_document, author=self)                                
-            except Document.DoesNotExist:            
-                documents = Document()
-        return documents
+        try:
+            if source_document:
+                
+                try:
+                    documents = Document.objects(source_document=source_document, author=self)
+                    
+                    if documents:
+                        documents = [x.to_dict() for x in documents] 
+                    else:
+                        documents = list() 
+                except Document.DoesNotExist:                              
+                    documents = list()
+                
+                return documents
+                
+        except Exception as identifier:
+            raise identifier
+        
 
     # Deletar um documento pelo ID
     def delete_document(self,id):
@@ -68,7 +80,7 @@ class User(mongoengine.Document):
     # Dicionário
     def to_dict(self):
         user = dict()
-        user['id'] = str(self.id)
+        # user['id'] = str(self.id)
         user['email'] = str(self.email)        
         user['first_name'] = str(self.first_name)
         user['last_name'] = str(self.last_name)
@@ -195,19 +207,9 @@ def get_document():
         _id = request.args.get('id', '')
         if not _id:
             abort(400)
-
-
         documents = auth.user.get_documents(_id)    
-            
-        if len(documents)==0:
-            abort(404)
-
-        print documents
-
-        
-
         return jsonify({'documents': documents})
-    except Exception as identifier:          
+    except Exception as identifier:
         raise InvalidUsage(identifier.message)
 
 # Atualizar Documento
