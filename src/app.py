@@ -30,25 +30,17 @@ mongoengine.connect('ford')
 
 ####################### Criação de Classes #################################
 class User(mongoengine.Document):
-    email = mongoengine.StringField(required=True, unique=True)
-    password = mongoengine.EmailField(required=True)
+    email = mongoengine.EmailField(required=True, unique=True)
+    password = mongoengine.StringField(required=True)
     first_name = mongoengine.StringField(required=True, max_length=50)
     last_name = mongoengine.StringField(max_length=50)
 
     # Criar pastas    
-    def create_directory(self,name, source_id):
+    def create_directory(self,name, source_document, is_favorited, description):
         try:
-            source_document = Directory.objects.get(id=source_id)   
-            if not source_document:
-                raise InvalidUsage('not exist directory with id={0}'.format(source_id))
-            
-            name_regex = re.compile(name,  re.IGNORECASE)
-            documents = Document.objects(source_document = source_document.id, name = name_regex)
-            if documents:
-                raise InvalidUsage('exist directory with name={0}'.format(name))                        
-
-            return Directory(name=name, author = self, source_document=source_document, date_created=datetime.datetime.utcnow(), date_modified=datetime.datetime.utcnow())
-
+            directory = Directory(name=name, author = self, source_document=source_document, description=description, is_favorited=is_favorited)
+            directory.save()
+            return directory            
         except Exception as identifier:
             raise InvalidUsage(identifier.message)
 
@@ -155,13 +147,13 @@ def handle_invalid_usage(error):
     return response
 
 ######################## Rotas ###############################################
-################# Documentos #################################################
-# Criar Documentos
+########### Documento #######################################################
+# Criar Documento
 @app.route(path_default_documents, methods=['POST'])
 @auth.login_required
 def add_document():        
     if not request.json or not 'type' in request.json:
-        raise InvalidUsage('not exist type in post')
+        raise InvalidUsage('not exist type in post',status_code=400)
 
     # Criação de Pasta
     if request.json['type'] == 'directory':
@@ -174,21 +166,27 @@ def add_document():
             
             # verifica se tem source_id 
             if source_id:
-                try:                    
-                    directory = auth.user.create_directory(name=name,source_id=source_id) # cria a pasta
-                    # atribute o resto das informações
-                    directory.is_favorited = is_favorited 
-                    directory.description = description
-                    directory.save() # salva no banco de dados                        
+                try:
+                    source_document = Directory.objects.get(id=source_id)   
+                    if not source_document:
+                        raise InvalidUsage('not exist directory with id={0}'.format(source_id))
+
+                    name_regex = re.compile(name,  re.IGNORECASE)
+                    documents = Document.objects(source_document = source_document.id, name = name_regex)
+                    if documents:
+                     raise InvalidUsage('exist directory with name={0}'.format(name))                        
+                    
+                    directory = auth.user.create_directory(name,source_document, is_favorited, description) # cria a pasta
+                                                             
                     return jsonify({'result': directory.to_dict()}), 201 #retorna para o usuario o diretório criado
                 except Exception as identifier:
                     raise InvalidUsage(identifier.message)
             else:
                 raise InvalidUsage('You must specify the source_id', status_code=400)
         except Exception as identifier:
-            raise InvalidUsage(identifier.message, status_code=410)
+            raise InvalidUsage(identifier.message)
 
-# Pegar Documentos
+# Pegar Documento
 @app.route(path_default_documents, methods=['GET'])
 @auth.login_required
 def get_document():        
@@ -211,17 +209,63 @@ def get_document():
     except Exception as identifier:          
         raise InvalidUsage(identifier.message)
 
-# Editar Documentos
+# Atualizar Documento
 @app.route(path_default_documents+'<id>', methods=['PUT'])
 @auth.login_required
 def update_document(id_document):    
     pass
     # return jsonify({'document': document[0]})
 
-# Deletar Documentos
+# Deletar Documento
 @app.route(path_default_documents+'<id>', methods=['DELETE'])
 @auth.login_required
 def delete_document(id_document):
+    pass
+
+
+########### Usuário #######################################################
+#Criar Usuário
+@app.route(path_default_user, methods=['POST'])
+def add_user():
+    if not request.json or not 'email' in request.json:
+        raise InvalidUsage('not exist email in post', status_code=400)
+    
+    try:
+        # Pega as informações do post
+        email = request.json.get('email')
+        password = request.json.get('password')
+        first_name = request.json.get('first_name')
+        last_name = request.json.get('last_name')
+
+        # criar o objeto usuário
+        new_user = User(email = email, password = password, first_name=first_name, last_name=last_name)        
+        # salva o usuáro
+        new_user.save()  
+        # criar o diretório root
+        root_directory = new_user.create_directory('root', None, False,'root directory') 
+        
+        return(jsonify({'user':new_user.to_dict()}))
+
+    except Exception as identifier:
+        raise InvalidUsage(identifier.message)
+
+
+# Pegar Usuário
+@app.route(path_default_user, methods=['GET'])
+@auth.login_required
+def get_user():
+    pass
+
+# Atualizar Usuário
+@app.route(path_default_user+'<id>', methods=['PUT'])
+@auth.login_required
+def update_user():
+    pass
+
+# Deletar Usuário
+@app.route(path_default_user+'<id>', methods=['DELETE'])
+@auth.login_required
+def delete_user():
     pass
 
 
