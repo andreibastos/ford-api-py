@@ -7,7 +7,7 @@ data: 30/01/2018
 """
 
 ###################### Importações de Pacotes ##########################
-from flask import Flask, jsonify, abort, request, url_for,  make_response, redirect
+from flask import Flask, jsonify, abort, request, url_for,  make_response, redirect, send_from_directory
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.utils import secure_filename
 import datetime, json, re, os, mongoengine
@@ -74,27 +74,27 @@ class User(mongoengine.Document):
     def get_documents(self, id):
         source_document = None
         try:
-            source_document = Document.objects.get(id=id, author = self)                                  
+            document = Document.objects.get(id=id, author = self)
+            if isinstance(document, Directory):
+                source_document = document 
+                if source_document:                
+                    try:
+                        documents = Document.objects(source_document=source_document, author=self)
+                        
+                        if documents:
+                            documents = [x.to_dict() for x in documents] 
+                        else:
+                            documents = list() 
+                    except Document.DoesNotExist:                              
+                        documents = list()
+                    
+                    return documents                                 
+            if isinstance(document, File):                
+                return document
 
         except Document.DoesNotExist:                        
-            raise InvalidUsage('directory not exist')
-        try:
-            if source_document:
-                
-                try:
-                    documents = Document.objects(source_document=source_document, author=self)
-                    
-                    if documents:
-                        documents = [x.to_dict() for x in documents] 
-                    else:
-                        documents = list() 
-                except Document.DoesNotExist:                              
-                    documents = list()
-                
-                return documents
-                
-        except Exception as identifier:
-            raise identifier
+            raise InvalidUsage('document not exist')
+       
         
     # Deletar um documento pelo ID
     def delete_document(self,id):
@@ -237,7 +237,7 @@ def add_document():
                     filename = secure_filename(file_upload.filename)
                     space_disk = 0  
                     system_path = os.path.join(source_document.system_path, filename)            
-                    file_uploaded = auth.user.upload_file(filename,source_document, is_favorited, description, system_path, space_disk)
+                    file_uploaded = auth.user.upload_file(filename,source_document, is_favorited, description, source_document.system_path, space_disk)
                     
                     file_upload.save(system_path)
                     file_uploaded.space_disk = os.stat(system_path).st_size 
@@ -307,10 +307,22 @@ def add_document():
 @auth.login_required
 def get_document():        
     try:
-        _id = request.args.get('id', '')
+        _id = request.args.get('id', None)
+        is_download = request.args.get('is_download',False).lower()=='true'
+
+        print is_download
         if not _id:
             abort(400)
-        documents = auth.user.get_documents(_id)    
+        documents = auth.user.get_documents(_id) 
+        
+        if isinstance(documents, File):            
+            if is_download:      
+                print documents.to_dict()
+
+                return send_from_directory(documents.system_path,documents.name, as_attachment=True,attachment_filename=documents.name)
+
+        
+
         return jsonify({'documents': documents})
     except Exception as identifier:
         raise InvalidUsage(identifier.message)
