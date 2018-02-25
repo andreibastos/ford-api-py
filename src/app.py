@@ -30,7 +30,7 @@ mongoengine.connect('ford')
 
 ####################### Criação de Classes #################################
 class User(mongoengine.Document):
-    email = mongoengine.EmailField(required=True, unique=True)
+    email = mongoengine.EmailField(required=True, primary_key=True)
     password = mongoengine.StringField(required=True)
     first_name = mongoengine.StringField(required=True, max_length=50)
     last_name = mongoengine.StringField(max_length=50)
@@ -77,6 +77,7 @@ class User(mongoengine.Document):
 class Document(mongoengine.Document):
     name = mongoengine.StringField(required=True)    
     is_favorited = mongoengine.BooleanField(default=False)
+    # author = mongoengine.ReferenceField(User, required=True)
     author = mongoengine.ReferenceField(User, required=True, reverse_delete_rule=mongoengine.CASCADE)
     date_created = mongoengine.DateTimeField(default=datetime.datetime.utcnow())
     date_modified = mongoengine.DateTimeField(default=datetime.datetime.utcnow())
@@ -241,6 +242,10 @@ def add_user():
         new_user = User(email = email, password = password, first_name=first_name, last_name=last_name)        
         # salva o usuáro
         new_user.save()  
+
+        #verificar se o usuário já possui diretório root
+
+
         # criar o diretório root
         new_user.create_directory('root', None, False,'root directory') 
         
@@ -257,17 +262,41 @@ def get_user():
 
 
 # Atualizar Usuário
-@app.route(path_default_user+'<id>', methods=['PUT'])
+@app.route(path_default_user, methods=['PUT'])
 @auth.login_required
 def update_user():
-    pass
+    if not request.json:
+        raise InvalidUsage('you must insert no minimum a field to update user', status_code=400)
+    
+    # Pega as informações do post
+    email = request.json.get('email')
+    password = request.json.get('password')
+    first_name = request.json.get('first_name')
+    last_name = request.json.get('last_name')
+
+    if email:
+        auth.user.email = email
+    if password:
+        auth.user.password = password
+    if first_name:
+        auth.user.first_name = first_name
+    if last_name:
+        auth.user.last_name = last_name
+
+    auth.user.save()
+    return(jsonify({'user':auth.user.to_dict()}))
 
 # Deletar Usuário
-@app.route(path_default_user+'<id>', methods=['DELETE'])
+@app.route(path_default_user, methods=['DELETE'])
 @auth.login_required
 def delete_user():
-    pass
-
+    global auth
+    try:
+        auth.user.delete()
+        auth = HTTPBasicAuth() 
+        return(jsonify({'sucess':1}))
+    except Exception as identifier:
+        raise InvalidUsage(identifier.message)
 
 ######################### Autenticação ##########################################
 @auth.get_password
