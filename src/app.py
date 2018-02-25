@@ -243,14 +243,11 @@ def add_document():
                     file_uploaded.space_disk = os.stat(system_path).st_size 
                     file_uploaded.save()
 
-                    
-                    
-
-                    source_document.space_disk += space_disk
+                    source_document.space_disk += file_uploaded.space_disk 
                     source_document.save()
 
                 else:
-                    raise InvalidUsage('extension is not valid')  
+                    raise InvalidUsage('extension is not valid or not exist file for upload')  
                 return jsonify({'file_uploaded':file_uploaded.to_dict()})
             else:
                 raise InvalidUsage("not exist document with id={0}".format(source_id))
@@ -304,6 +301,7 @@ def add_document():
                 raise InvalidUsage(identifier.message)
 
 
+
 # Pegar Documento
 @app.route(route_default_documents, methods=['GET'])
 @auth.login_required
@@ -322,7 +320,6 @@ def get_document():
 @auth.login_required
 def update_document(id_document):    
     pass
-    # return jsonify({'document': document[0]})
 
 # Deletar Documento
 @app.route(route_default_documents+'<id>', methods=['DELETE'])
