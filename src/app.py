@@ -14,7 +14,7 @@ import datetime, json, re, os, mongoengine
 
 
 ######################### Configurações ##################################
-USER_FOLDER = '/home/andrei/ford/data/'
+USER_FOLDER = '~/ford/data/'
 auth = HTTPBasicAuth() 
 app = Flask(__name__)
 app.debug = True
@@ -41,12 +41,12 @@ class User(mongoengine.Document):
     first_name = mongoengine.StringField(required=True, max_length=60)
     last_name = mongoengine.StringField(max_length=50)
     system_path = mongoengine.StringField()
-    
+    root_directory_id = mongoengine.StringField()
     
 
     # Criar pastas    
     def create_directory(self,name, source_document, is_favorited, description):
-        try:
+        try:            
             field_name_folder = 'name'
             directory = Directory(name=name, author = self, source_document=source_document, description=description, is_favorited=is_favorited)            
             name_folder = directory.to_dict()[field_name_folder]
@@ -56,18 +56,22 @@ class User(mongoengine.Document):
                 directory.save()
                 system_path = self.system_path
                 
-            directory.system_path =  os.path.join(system_path,name_folder)
             
+
+            directory.system_path =  os.path.join(system_path,name_folder)
+                        
             
             try:
                 if not os.path.exists(directory.system_path):
                     os.makedirs(directory.system_path) 
             except OSError as identifier:
+                print type(identifier)
                 raise InvalidUsage(identifier.message)
             directory.save()
 
             return directory            
         except Exception as identifier:
+            print type(identifier)
             raise InvalidUsage(identifier.message)
 
     # Buscar documentos pelo ID de uma pasta
@@ -111,13 +115,13 @@ class User(mongoengine.Document):
         user['id'] = str(self.id)
         user['email'] = str(self.email)        
         user['first_name'] = str(self.first_name)
-        user['last_name'] = str(self.last_name)
+        user['last_name'] = str(self.last_name)        
+        user['root_directory_id'] = self.root_directory_id
         return user
 
 class Document(mongoengine.Document):
     name = mongoengine.StringField(required=True)    
-    is_favorited = mongoengine.BooleanField(default=False)
-    # author = mongoengine.ReferenceField(User, required=True)
+    is_favorited = mongoengine.BooleanField(default=False)    
     author = mongoengine.ReferenceField(User, required=True, reverse_delete_rule=mongoengine.CASCADE)
     date_created = mongoengine.DateTimeField(default=datetime.datetime.utcnow())
     date_modified = mongoengine.DateTimeField(default=datetime.datetime.utcnow())
@@ -146,7 +150,7 @@ class Directory(Document):
         directory['author'] = self.author.to_dict()
         directory['system_path'] = self.system_path  
         if self.source_document:
-            directory['source_id'] = self.source_document.to_dict()['id']         
+            directory['source_document'] = self.source_document.to_dict()
         
         return directory
 
@@ -170,7 +174,7 @@ class File(Document):
         file['author'] = self.author.to_dict()
         file['system_path'] = self.system_path  
         if self.source_document:
-            file['source_id'] = self.source_document.to_dict()['id']
+            file['source_document'] = self.source_document.to_dict()
         return file
 
 class Process(Document):
@@ -222,7 +226,6 @@ def add_document():
         is_favorited = request.form.get('is_favorited')
         description = request.form.get('description')
         
-
         if not file_upload:
             raise InvalidUsage('not file in form-data')
         
@@ -287,8 +290,8 @@ def add_document():
                     raise InvalidUsage('You must specify the source_id', status_code=400)
             except Exception as identifier:
                 raise InvalidUsage(identifier.message)
-
-        if request.json['type'] == 'file':
+        
+        if request.json['type'] == 'process':
             try:
                 # Pega as informações do arquivo
                 name= request.json.get('name')
@@ -296,9 +299,10 @@ def add_document():
                 description = request.json.get('description')
                 is_favorited = request.json.get('is_favorited') or False
                 file_upload  = request.files
-                print json.dumps(file_upload)
             except Exception as identifier:
                 raise InvalidUsage(identifier.message)
+        
+    raise InvalidUsage('bad request', status_code=400)
 
 
 
@@ -361,12 +365,16 @@ def add_user():
         first_name = request.json.get('first_name')
         last_name = request.json.get('last_name')
 
+        
+
+
         # criar o objeto usuário
         new_user = User(email = email, password = password, first_name=first_name, last_name=last_name)
-
+        
         
         # salva o usuáro
         new_user.save()  
+        
 
         
         new_user.system_path = os.path.join(app.config['USER_FOLDER'], new_user.to_dict()['first_name'] )
@@ -378,10 +386,15 @@ def add_user():
 
         #verificar se o usuário já possui diretório root
 
+        
 
         # criar o diretório root
-        new_user.create_directory('root', None, False,'root directory') 
+        root_directory = new_user.create_directory('root', None, False,'root directory') 
+        new_user.root_directory_id = root_directory.to_dict()['id']
         
+        new_user.save()
+
+
         return(jsonify({'user':new_user.to_dict()}))
 
     except Exception as identifier:
