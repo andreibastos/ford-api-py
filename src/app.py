@@ -28,7 +28,12 @@ route_default = "/api/"
 route_default_documents = route_default + "document"
 route_default_user = route_default + "user"
 
-ALLOWED_EXTENSIONS = set(['txt', 'pdf','csv','json', 'png', 'jpg', 'jpeg', 'gif','zip'])
+TEXT_EXTENSION =  ['csv','txt','json']
+IMAGE_EXTENSION = ['png','jpg', 'jpeg','gif','bmp']
+COLLECT_EXTENSION = ['twitter','facebook']
+PARSER_EXTENSION = ['mandala', 'top','timeline']
+
+ALLOWED_EXTENSIONS = set(TEXT_EXTENSION + IMAGE_EXTENSION + COLLECT_EXTENSION+ PARSER_EXTENSION)
 
 # Banco de dados
 mongoengine.connect('ford')
@@ -154,15 +159,19 @@ class DocumentDirectory(Document):
         
         return directory
 
-class DocumentFile(Document):
-    source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE)
-    name = mongoengine.StringField(required=True, unique_with='source_document' )  
-    source_from = mongoengine.StringField()
+class DocumentFile(Document):     
+    source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE)  # indica o documento de origem
+    name = mongoengine.StringField(required=True, unique_with='source_document' )  # nome do arquivo
+    source_from = mongoengine.StringField(choices = ['system','upload']) # origem da fonte, (se foi o system que gerou ou o usuário que upou)
+    file_type = mongoengine.StringField(choices = ['collect','parser','text', 'image']) 
+    extension = mongoengine.StringField() #indica a extensão do arquivo. ex:csv, pdf, json 
+    link_download = mongoengine.StringField() #link para fazer o download
+    # data = mongoengine.DynamicDocument(default = {'message':'not apply'}) # conteudo do arquivo. 
+
+    meta = {'allow_inheritance': True} 
     
-    meta = {'allow_inheritance': True}
-    
-    # Dicionário
-    def to_dict(self):        
+    # Dicionário 
+    def to_dict(self):                
         file = dict()
         file['id'] = str(self.id)
         file['name'] = self.name
