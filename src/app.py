@@ -47,7 +47,6 @@ class User(mongoengine.Document):
     last_name = mongoengine.StringField(max_length=50)
     system_path = mongoengine.StringField()
     root_directory_id = mongoengine.StringField()
-    
 
     # Criar pastas    
     def create_directory(self,name, source_document, is_favorited, description):
@@ -418,39 +417,51 @@ def get_user():
 
 
 # Atualizar Usuário
-@app.route(route_default_user, methods=['PUT'])
+@app.route(route_default_user+'/<id_user>', methods=['PUT'])
 @auth.login_required
-def update_user():
+def update_user(id_user):
     if not request.json:
         raise InvalidUsage('you must insert no minimum a field to update user', status_code=400)
     
-    # Pega as informações do post
-    email = request.json.get('email')
-    password = request.json.get('password')
-    first_name = request.json.get('first_name')
-    last_name = request.json.get('last_name')
+    if not id_user:
+        raise InvalidUsage('you must id_user to update user', status_code=400)
+    
+    try:
+        user_find = User.objects.get(id= id_user)
+    
+        # Pega as informações do post
+        email = request.json.get('email')
+        password = request.json.get('password')
+        first_name = request.json.get('first_name')
+        last_name = request.json.get('last_name')
 
-    if email:
-        auth.user.email = email
-    if password:
-        auth.user.password = password
-    if first_name:
-        auth.user.first_name = first_name
-    if last_name:
-        auth.user.last_name = last_name
+        if email:
+            user_find.email = email
+        if password:
+            user_find.password = password
+        if first_name:
+            user_find.first_name = first_name
+        if last_name:
+            user_find.last_name = last_name
 
-    auth.user.save()
-    return(jsonify({'user':auth.user.to_dict()}))
+        user_find.save()
+
+    except:
+        raise InvalidUsage('not exist user with id = {}'.format(id_user))
+
+    return(jsonify({'user':user_find.to_dict()}))
 
 # Deletar Usuário
-@app.route(route_default_user, methods=['DELETE'])
+@app.route(route_default_user+ '/<id_user>', methods=['DELETE'])
 @auth.login_required
-def delete_user():
-    global auth
+def delete_user(id_user):        
     try:
-        auth.user.delete()
-        auth = HTTPBasicAuth() 
-        return(jsonify({'sucess':1}))
+        if not id_user:
+            raise InvalidUsage('not exist id_user')
+        user_find = User.objects.get(id=id_user)    
+        if user_find:
+            user_find.delete()
+            return jsonify({'message':'user with email {0} deleted.'.format(user_find.email)})
     except Exception as identifier:
         raise InvalidUsage(identifier.message)
 
