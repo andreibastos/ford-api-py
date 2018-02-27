@@ -48,7 +48,7 @@ class User(mongoengine.Document):
     def create_directory(self,name, source_document, is_favorited, description):
         try:            
             field_name_folder = 'name'
-            directory = Directory(name=name, author = self, source_document=source_document, description=description, is_favorited=is_favorited)            
+            directory = DocumentDirectory(name=name, author = self, source_document=source_document, description=description, is_favorited=is_favorited)            
             name_folder = directory.to_dict()[field_name_folder]
             if source_document:
                 system_path = source_document.system_path
@@ -79,7 +79,7 @@ class User(mongoengine.Document):
         source_document = None
         try:
             document = Document.objects.get(id=id, author = self)
-            if isinstance(document, Directory):
+            if isinstance(document, DocumentDirectory):
                 source_document = document 
                 if source_document:                
                     try:
@@ -93,7 +93,7 @@ class User(mongoengine.Document):
                         documents = list()
                     
                     return documents                                 
-            if isinstance(document, File):                
+            if isinstance(document, DocumentFile):                
                 return document
 
         except Document.DoesNotExist:                        
@@ -107,7 +107,7 @@ class User(mongoengine.Document):
             document[0].delete()
     
     def upload_file(self, name,source_document, is_favorited, description, system_path, space_disk):
-        return File(name=name, space_disk=space_disk, source_document=source_document,is_favorited=is_favorited,author=self, description=description, system_path=system_path)
+        return DocumentFile(name=name, space_disk=space_disk, source_document=source_document,is_favorited=is_favorited,author=self, description=description, system_path=system_path)
 
     # Dicionário
     def to_dict(self):
@@ -131,7 +131,7 @@ class Document(mongoengine.Document):
     meta = {'allow_inheritance': True}
     system_path = mongoengine.StringField()
 
-class Directory(Document):
+class DocumentDirectory(Document):
     source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE )
           
     meta = {'allow_inheritance': True}
@@ -154,10 +154,11 @@ class Directory(Document):
         
         return directory
 
-class File(Document):
+class DocumentFile(Document):
     source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE)
     name = mongoengine.StringField(required=True, unique_with='source_document' )  
-
+    source_from = mongoengine.StringField()
+    
     meta = {'allow_inheritance': True}
     
     # Dicionário
@@ -177,7 +178,7 @@ class File(Document):
             file['source_document'] = self.source_document.to_dict()
         return file
 
-class Process(Document):
+class DocumentProcess(Document):
     source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE)
     meta = {'allow_inheritance': True}
 
@@ -272,7 +273,7 @@ def add_document():
                 # verifica se tem source_id 
                 if source_id:
                     try:
-                        source_document = Directory.objects.get(id=source_id)   
+                        source_document = DocumentDirectory.objects.get(id=source_id)   
                         if not source_document:
                             raise InvalidUsage('not exist directory with id={0}'.format(source_id))
 
@@ -319,7 +320,7 @@ def get_document():
             abort(400)
         documents = auth.user.get_documents(_id) 
         
-        if isinstance(documents, File):            
+        if isinstance(documents, DocumentFile):            
             if is_download:      
                 print documents.to_dict()
 
