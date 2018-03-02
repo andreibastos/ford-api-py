@@ -68,14 +68,12 @@ class User(mongoengine.Document):
             try:
                 if not os.path.exists(directory.system_path):
                     os.makedirs(directory.system_path) 
-            except OSError as identifier:
-                print type(identifier)
+            except OSError as identifier:                
                 raise InvalidUsage(identifier.message)
             directory.save()
 
             return directory            
-        except Exception as identifier:
-            print type(identifier)
+        except Exception as identifier:            
             raise InvalidUsage(identifier.message)
 
     # Buscar documentos pelo ID de uma pasta
@@ -410,10 +408,14 @@ def add_user():
         raise InvalidUsage(identifier.message)
 
 # Pegar Usuário
-@app.route(route_default_user, methods=['GET'])
+@app.route(route_default_user +'/<id_user>', methods=['GET'])
 @auth.login_required
-def get_user():
-    return(jsonify({'user':auth.user.to_dict()}))
+def get_user(id_user):
+    try:
+        return jsonify({'user':User.objects.get(id=id_user)})
+    except:
+        return(jsonify({'user':auth.user.to_dict()}))    
+    
 
 
 # Atualizar Usuário
