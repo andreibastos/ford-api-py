@@ -1,0 +1,38 @@
+mineração
+    twitter
+        coleta (flashback)            
+            query_type = tweets
+                query = dilma
+                lang = PT
+                max_days = 1
+                max_tweets = None
+                max_id = None
+                since_id = None
+                coordinates = None
+            query_type = tweet-ids
+                query = dilma
+                lang = None
+                max_days = None
+                max_tweets = None
+                max_id = None
+                since_id = None
+                coordinates = None
+            query_type = timeline
+                query = andreibastos_
+                lang = None
+                max_days = None
+                max_tweets = None
+                max_id = None
+                since_id = None
+                coordinates = None
+            query_type = users
+                query = andreibastos_
+                lang = None
+                max_days = None
+                max_tweets = None
+                max_id = None
+                since_id = None
+                coordinates = None
+            
+
+             
