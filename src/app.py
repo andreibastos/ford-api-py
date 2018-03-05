@@ -156,10 +156,26 @@ class DocumentDirectory(Document):
         
         return directory
 
+class DocumentProcess(Document):
+    source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE)
+    pid = mongoengine.IntField(min_value=0)
+    log = mongoengine.StringField()    
+    meta = {'allow_inheritance': True}
+
+class ProcessCollect(DocumentProcess):
+    social_network_source = mongoengine.StringField(required=True)
+    parameters = mongoengine.DynamicField(default=None)
+    filters = mongoengine.DynamicField(default=None)
+    meta = {'allow_inheritance': True}
+
+class ProcessParser(DocumentProcess):
+    meta = {'allow_inheritance': True}
+
 class DocumentFile(Document):     
     source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE)  # indica o documento de origem
     name = mongoengine.StringField(required=True, unique_with='source_document' )  # nome do arquivo
     source_from = mongoengine.StringField(choices = ['system','upload']) # origem da fonte, (se foi o system que gerou ou o usuário que upou)
+    source_process = mongoengine.ReferenceField(DocumentProcess, reverse_delete_rule=mongoengine.CASCADE)
     file_type = mongoengine.StringField(choices = ['collect','parser','text', 'image']) 
     extension = mongoengine.StringField() #indica a extensão do arquivo. ex:csv, pdf, json 
     link_download = mongoengine.StringField() #link para fazer o download
@@ -183,10 +199,6 @@ class DocumentFile(Document):
         if self.source_document:
             file['source_document'] = self.source_document.to_dict()
         return file
-
-class DocumentProcess(Document):
-    source_document = mongoengine.ReferenceField(Document, reverse_delete_rule=mongoengine.CASCADE)
-    meta = {'allow_inheritance': True}
 
 class InvalidUsage(Exception):
     status_code = 400
